@@ -1,0 +1,203 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Catálogo | Farmacia VitalClin</title>
+  <meta name="description" content="Consulte precios y disponibilidad de medicamentos en Farmacia VitalClin, Puerto Quijarro.">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/css/app.css">
+  <style>
+    body { background: var(--fondo); }
+    .pub-head { background: var(--azul); color: #fff; }
+    .pub-wrap { max-width: 1080px; margin: 0 auto; padding: 0 20px; }
+    .pub-top { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 18px 0; }
+    .pub-hero { padding: 26px 0 30px; display: grid; gap: 16px; }
+    .pub-hero h1 { font-size: 34px; font-weight: 800; letter-spacing: -.02em; max-width: 20ch; }
+    .pub-hero p { color: #B9CEE2; max-width: 56ch; }
+    .pub-buscar { position: relative; max-width: 560px; }
+    .pub-buscar input { padding: 14px 16px 14px 44px; font-size: 15px; border: 0; border-radius: 12px; }
+    .pub-buscar svg { position: absolute; left: 15px; top: 50%; transform: translateY(-50%); width: 18px; height: 18px; color: var(--gris); }
+    .cats { display: flex; gap: 8px; flex-wrap: wrap; padding: 20px 0 6px; }
+    .cats button {
+      font: inherit; font-weight: 600; font-size: 13px; border: 1px solid var(--linea); background: var(--papel);
+      padding: 7px 13px; border-radius: 999px; cursor: pointer; color: var(--tinta);
+    }
+    .cats button.activo { background: var(--azul); color: #fff; border-color: var(--azul); }
+    .estante { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 12px; padding: 14px 0 60px; }
+    .med {
+      background: var(--papel); border: 1px solid var(--linea); border-radius: 12px;
+      padding: 16px; display: flex; flex-direction: column; gap: 10px;
+      border-top: 4px solid var(--verde);
+    }
+    .med.agotado { border-top-color: var(--linea); }
+    .med h3 { font-size: 15.5px; }
+    .med .pa { color: var(--gris); font-size: 13px; }
+    .med .pie { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-top: auto; }
+    .med .precio { font-size: 19px; font-weight: 800; font-variant-numeric: tabular-nums; }
+    .med .precio s { font-size: 12.5px; color: var(--gris-claro); font-weight: 500; margin-right: 6px; }
+    .carrito-btn { position: relative; }
+    .carrito-btn .badge { position: absolute; top: -6px; right: -6px; background: var(--verde); color: #06331A; }
+    .pub-pie { border-top: 1px solid var(--linea); padding: 22px 0 32px; color: var(--gris); font-size: 13px; display: flex; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+    @media (max-width: 600px) { .pub-hero h1 { font-size: 26px; } }
+  </style>
+</head>
+<body>
+  <header class="pub-head">
+    <div class="pub-wrap">
+      <div class="pub-top">
+        <div class="marca" style="padding:0">
+          <span class="marca-logo"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9.5 4h5v5.5H20v5h-5.5V20h-5v-5.5H4v-5h5.5z" fill="#0F3D66"/></svg></span>
+          <div><b id="nombre">Farmacia VitalClin</b><small id="dir">Puerto Quijarro, Bolivia</small></div>
+        </div>
+        <button class="btn verde carrito-btn" id="ver-consulta">Mi consulta <span class="badge hidden" id="n">0</span></button>
+      </div>
+      <div class="pub-hero">
+        <h1>¿Tenemos lo que necesita? Consulte antes de venir.</h1>
+        <p>Precios y disponibilidad actualizados con nuestro inventario. Agregue medicamentos a su consulta y escríbanos por WhatsApp.</p>
+        <div class="pub-buscar">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
+          <input type="search" id="q" placeholder="Nombre del medicamento o principio activo" aria-label="Buscar medicamento">
+        </div>
+      </div>
+    </div>
+  </header>
+
+  <main class="pub-wrap">
+    <div class="cats" id="cats" role="group" aria-label="Categorías"></div>
+    <div class="estante" id="estante"></div>
+    <footer class="pub-pie">
+      <span>Los medicamentos con receta se dispensan solo presentando la receta médica.</span>
+      <a href="/">Acceso del personal</a>
+    </footer>
+  </main>
+
+  <script type="module">
+    import { esc, bs, modal, toast, leerForm } from '/js/ui.js';
+
+    const f = { q: '', categoria: '' };
+    let info = { whatsapp: '' };
+    let productos = [];
+    const consulta = new Map(); // id -> { producto, cantidad }
+
+    const get = async (url) => { const r = await fetch(url); if (!r.ok) throw new Error('No se pudo cargar'); return r.json(); };
+
+    async function iniciar() {
+      const [i, cats] = await Promise.all([get('/api/publico/info'), get('/api/publico/categorias')]);
+      info = i;
+      document.querySelector('#nombre').textContent = i.nombre_farmacia;
+      document.querySelector('#dir').textContent = i.direccion;
+      const $c = document.querySelector('#cats');
+      $c.innerHTML = `<button class="activo" data-v="">Todo</button>` +
+        cats.map((c) => `<button data-v="${c.id_categoria}">${esc(c.icono || '')} ${esc(c.nombre)}</button>`).join('');
+      $c.querySelectorAll('button').forEach((b) => b.addEventListener('click', () => {
+        f.categoria = b.dataset.v;
+        $c.querySelectorAll('button').forEach((x) => x.classList.toggle('activo', x === b));
+        pintar();
+      }));
+      pintar();
+    }
+
+    async function pintar() {
+      const p = new URLSearchParams(Object.entries(f).filter(([, v]) => v));
+      productos = await get('/api/publico/catalogo?' + p);
+      const $e = document.querySelector('#estante');
+      $e.innerHTML = productos.length ? productos.map((x, i) => `
+        <article class="med ${x.disponible ? '' : 'agotado'}">
+          <div>
+            <h3>${esc(x.nombre_comercial)} ${esc(x.concentracion || '')}</h3>
+            <p class="pa">${esc(x.principio_activo)}${x.presentacion ? ', ' + esc(x.presentacion) : ''}</p>
+          </div>
+          <div style="display:flex;gap:6px;flex-wrap:wrap">
+            <span class="chip ${x.disponible ? 'verde' : 'negro'}">${x.disponible ? 'Disponible' : 'Agotado'}</span>
+            ${x.requiere_receta ? '<span class="chip azul sin-punto">Con receta</span>' : ''}
+            ${x.descuento_pct ? `<span class="chip amarillo sin-punto">${x.descuento_pct}% de descuento</span>` : ''}
+          </div>
+          <div class="pie">
+            <span class="precio">${x.descuento_pct ? `<s>${bs(x.precio_venta)}</s>` : ''}${bs(x.precio_final)}</span>
+            <button class="btn sec mini" data-i="${i}">${consulta.has(x.id_producto) ? 'Agregado' : 'Consultar'}</button>
+          </div>
+        </article>`).join('') : `<div class="vacio panel" style="grid-column:1/-1"><b>No encontramos ese medicamento</b>Escríbanos y le avisamos si podemos conseguirlo.</div>`;
+      $e.querySelectorAll('[data-i]').forEach((b) => b.addEventListener('click', () => {
+        const x = productos[b.dataset.i];
+        const it = consulta.get(x.id_producto);
+        if (it) it.cantidad++; else consulta.set(x.id_producto, { producto: x, cantidad: 1 });
+        b.textContent = 'Agregado';
+        contar();
+        toast(`${x.nombre_comercial} agregado a su consulta`);
+      }));
+    }
+
+    function contar() {
+      const n = [...consulta.values()].reduce((a, x) => a + x.cantidad, 0);
+      const b = document.querySelector('#n');
+      b.textContent = n;
+      b.classList.toggle('hidden', !n);
+    }
+
+    function verConsulta() {
+      const items = [...consulta.values()];
+      const total = items.reduce((a, x) => a + x.producto.precio_final * x.cantidad, 0);
+      const m = modal({
+        titulo: 'Mi consulta',
+        subtitulo: 'Le respondemos con disponibilidad y precio final.',
+        cuerpo: `
+          ${items.length ? `<ul class="lista" style="margin:0 -22px 14px">${items.map((x) => `
+            <li><div class="grow"><b>${esc(x.producto.nombre_comercial)} ${esc(x.producto.concentracion || '')}</b>
+              <span class="muted small">${bs(x.producto.precio_final)} c/u</span></div>
+              <input type="number" min="0" value="${x.cantidad}" data-id="${x.producto.id_producto}" style="width:70px" aria-label="Cantidad">
+            </li>`).join('')}</ul>
+            <p style="margin-bottom:14px">Total estimado: <b>${bs(total)}</b></p>` : '<p class="muted" style="margin-bottom:14px">Aún no agregó medicamentos. Puede escribirnos igual.</p>'}
+          <form id="fc" class="form-grid">
+            <label class="campo">Su nombre<input name="nombre" required autofocus></label>
+            <label class="campo">Teléfono<input name="telefono" inputmode="tel"></label>
+            <label class="campo span-2">Mensaje<textarea name="mensaje" rows="3" placeholder="¿Tienen la presentación en jarabe? ¿A qué hora abren?"></textarea></label>
+          </form>`,
+        pie: `<button class="btn sec" id="web">Dejar consulta</button><button class="btn verde" id="wsp">Enviar por WhatsApp</button>`,
+      });
+      m.el.querySelectorAll('input[data-id]').forEach((inp) => inp.addEventListener('change', () => {
+        const v = parseInt(inp.value, 10) || 0;
+        if (v <= 0) consulta.delete(Number(inp.dataset.id)); else consulta.get(Number(inp.dataset.id)).cantidad = v;
+        contar();
+      }));
+
+      const enviar = async (canal, btn) => {
+        const d = leerForm(m.el.querySelector('#fc'));
+        const lista = [...consulta.values()];
+        if (!d.nombre) return toast('Escriba su nombre', 'error');
+        const mensaje = d.mensaje || (lista.length ? 'Consulta de disponibilidad' : '');
+        if (!mensaje) return toast('Escriba su consulta', 'error');
+        btn.disabled = true;
+        try {
+          const r = await fetch('/api/publico/consultas', {
+            method: 'POST', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ ...d, mensaje, canal, items: lista.map((x) => ({ id_producto: x.producto.id_producto, cantidad: x.cantidad })) }),
+          });
+          if (!r.ok) throw new Error((await r.json()).error);
+          if (canal === 'whatsapp' && info.whatsapp) {
+            const txt = `Hola, soy ${d.nombre}. ${mensaje}\n` + lista.map((x) => `- ${x.cantidad} x ${x.producto.nombre_comercial} ${x.producto.concentracion || ''}`).join('\n');
+            window.open(`https://wa.me/${info.whatsapp.replace(/\D/g, '')}?text=${encodeURIComponent(txt)}`, '_blank', 'noopener');
+          }
+          consulta.clear();
+          contar();
+          m.cerrar();
+          pintar();
+          toast('Recibimos su consulta. Le responderemos pronto.');
+        } catch (e) {
+          toast(e.message, 'error');
+          btn.disabled = false;
+        }
+      };
+      m.el.querySelector('#web').addEventListener('click', (e) => enviar('web', e.currentTarget));
+      m.el.querySelector('#wsp').addEventListener('click', (e) => enviar('whatsapp', e.currentTarget));
+    }
+
+    let t;
+    document.querySelector('#q').addEventListener('input', (e) => { clearTimeout(t); t = setTimeout(() => { f.q = e.target.value.trim(); pintar(); }, 220); });
+    document.querySelector('#ver-consulta').addEventListener('click', verConsulta);
+    iniciar().catch(() => { document.querySelector('#estante').innerHTML = '<div class="vacio panel"><b>El catálogo no está disponible</b>Intente de nuevo en unos minutos.</div>'; });
+  </script>
+</body>
+</html>

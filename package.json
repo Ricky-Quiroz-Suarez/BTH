@@ -1,0 +1,24 @@
+{
+  "name": "farmastock",
+  "version": "1.0.0",
+  "description": "Sistema de gestión de inventario farmacéutico para la Farmacia VitalClin",
+  "main": "src/server.js",
+  "scripts": {
+    "start": "node src/server.js",
+    "dev": "node --watch src/server.js",
+    "db:init": "node scripts/init-db.js",
+    "db:init:limpia": "node scripts/init-db.js --limpia"
+  },
+  "author": "Thais Emily Góngora Sejas, Saniel Machicado Frías",
+  "license": "UNLICENSED",
+  "dependencies": {
+    "dotenv": "^18.0.9",
+    "express": "^5.3.0",
+    "jsonwebtoken": "^9.0.3",
+    "pg": "^8.23.1"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "private": true
+}
