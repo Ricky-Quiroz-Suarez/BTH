@@ -9,7 +9,7 @@ types.setTypeParser(20, (v) => parseInt(v, 10)); // BIGINT / COUNT
 
 const pool = new Pool({
   connectionString: process.env.DATABASE_URL,
-  options: '-c search_path=farmastock,public',
+  options: '-c search_path=farmastock,public -c timezone=America/La_Paz',
 });
 
 const query = (text, params) => pool.query(text, params);
